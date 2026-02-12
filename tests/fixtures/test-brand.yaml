@@ -1,0 +1,49 @@
+id: test-brand
+name: "Test Brand"
+tagline: "Test tagline"
+
+venue:
+  address: "123 Test St"
+  city: "Portland"
+  state: "OR"
+  zip: "97201"
+  phone: "555-555-5555"
+  email: "test@test.com"
+
+social:
+  instagram: "@testbrand"
+
+colors:
+  primary: "#FF0000"
+  dark: "#000000"
+  accent: "#FFAA00"
+  light: "#FFFFFF"
+  secondary: "#888888"
+
+typography:
+  heading: "Arial"
+  body: "Helvetica"
+  accent: "Georgia"
+  min_heading_size: 24
+  min_body_size: 10
+
+voice:
+  tone: "casual"
+  personality: "Friendly test brand"
+  writing_style: "Short and sweet"
+  sample_phrases:
+    - "Test it out"
+
+design_rules:
+  logo_clearspace: "Leave space around logo"
+  safe_margins: "Keep text within 85% of canvas"
+  prohibited:
+    - "No Comic Sans"
+  required:
+    - "Include logo"
+
+logos:
+  - id: test-logo
+    path: "./test-logo.png"
+    type: primary
+    use_on: light

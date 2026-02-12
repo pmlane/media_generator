@@ -1,0 +1,71 @@
+id: triple-lindy
+name: "The Triple Lindy"
+tagline: "Dive in."
+
+venue:
+  address: "1000 NW 17th Ave"
+  city: "Portland"
+  state: "OR"
+  zip: "97209"
+  phone: "971-266-8499"
+  email: "hello@triplelindypdx.com"
+  hours_note: "All ages welcome until 8pm. 21+ after 8pm."
+
+social:
+  instagram: "@triplelindypdx"
+  facebook: "triplelindyportland"
+
+colors:
+  primary: "#E02020"
+  dark: "#1C1C1C"
+  accent: "#D6B38D"
+  light: "#F8F8F8"
+  secondary: "#9A9A9A"
+
+typography:
+  heading: "Oswald"
+  body: "Libre Franklin"
+  accent: "Playfair Display"
+  min_heading_size: 24
+  min_body_size: 10
+
+voice:
+  tone: "casual, friendly, a little cheeky"
+  personality: "Neighborhood bar that doesn't take itself too seriously. Portland proud."
+  writing_style: "Short punchy sentences. Occasional humor. Never corporate."
+  sample_phrases:
+    - "Dive in."
+    - "No fuss. Just good."
+
+design_rules:
+  logo_clearspace: "Always leave padding around the logo equal to the height of the 'T' in the wordmark"
+  safe_margins: "Keep all text and critical elements within 85% of canvas (7.5% margin on each side)"
+  prohibited:
+    - "Never place text directly over the logo"
+    - "Never use neon green, pink, or bright blue"
+    - "Never use Comic Sans or overly decorative script fonts"
+    - "Never use clip art or stock photo watermarks"
+  required:
+    - "Always include the logo on generated media"
+    - "Use brand colors as the dominant palette - accent colors from content are OK as secondary"
+    - "Maintain high contrast between text and background (WCAG AA minimum)"
+
+logos:
+  - id: logo-black
+    path: "../new_website/media_assets/logos/01 TL_black.png"
+    type: primary
+    use_on: light
+  - id: logo-red
+    path: "../new_website/media_assets/logos/02 TL_red.png"
+    type: primary
+    use_on: dark
+  - id: logo-white
+    path: "../new_website/media_assets/logos/03 TL_white.png"
+    type: primary
+    use_on: dark
+  - id: pdx-diver
+    path: "../new_website/media_assets/logos/PDX Diver - Free Space_No Background.png"
+    type: mascot
+  - id: rodney-head
+    path: "../new_website/media_assets/logos/Rodney Head.png"
+    type: icon
