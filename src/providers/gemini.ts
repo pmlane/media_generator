@@ -12,7 +12,7 @@ import type {
   ProviderResult,
 } from "../media/types.js";
 
-const DEFAULT_MODEL = "gemini-2.0-flash-preview-image-generation";
+const DEFAULT_MODEL = "gemini-3-pro-image-preview";
 const DEFAULT_COST_CENTS = 4;
 
 export class GeminiProvider implements ImageProvider {

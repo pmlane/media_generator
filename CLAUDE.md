@@ -56,6 +56,13 @@ npm run test:watch    # Watch mode
 
 Tests use a mock provider (no API calls). Integration tests cover the full pipeline lifecycle.
 
+## Environment Notes
+
+- The working Gemini image model is `gemini-3-pro-image-preview` (set in `.env` and as default in `src/providers/gemini.ts`)
+- API key is shared with the trivia_generator project (`GOOGLE_AI_API_KEY`)
+- Brand logos reference `../new_website/media_assets/logos/` via relative paths in the brand YAML
+- The `output/` directory is gitignored; generated media stays local
+
 ## Adding a New Brand
 
 1. Create `brands/<brand-id>.yaml` following the schema in `src/brands/schema.ts`
