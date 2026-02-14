@@ -140,6 +140,7 @@ export interface ProviderRequest {
   images: ProviderImage[];
   outputConfig: {
     aspectRatio: string;
+    quality?: string;
   };
 }
 
@@ -196,6 +197,20 @@ export interface GenerationRequest {
   campaign?: string;
   sides?: number;
   printReady?: boolean;
+  /** Hex color for logo tinting, e.g. "#8B00FF" */
+  logoColor?: string;
+  /** Image provider override: "openai" | "gemini" */
+  provider?: string;
+  /** Image quality tier (OpenAI): "low" | "medium" | "high" */
+  quality?: string;
+  /** Use programmatic text rendering instead of AI-generated text */
+  textOverlay?: boolean;
+  /** Also export an editable PowerPoint file (requires textOverlay) */
+  exportPptx?: boolean;
+  /** Path to an existing image to edit (edit mode) */
+  editSource?: string;
+  /** Edit instructions describing what to change */
+  editInstructions?: string;
 }
 
 // --- Metadata ---

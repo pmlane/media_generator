@@ -8,6 +8,7 @@ import type {
   CostEstimate,
 } from "../media/types.js";
 import { GeminiProvider } from "./gemini.js";
+import { OpenAIProvider } from "./openai.js";
 
 interface UsageEntry {
   timestamp: number;
@@ -35,8 +36,9 @@ export class ProviderRegistryImpl implements IProviderRegistry {
     this.maxRetries =
       config?.maxRetries ?? (Number(process.env.MAX_RETRIES) || 2);
 
-    // Register default provider
+    // Register providers
     this.register(new GeminiProvider());
+    this.register(new OpenAIProvider());
   }
 
   register(provider: ImageProvider): void {
@@ -62,7 +64,7 @@ export class ProviderRegistryImpl implements IProviderRegistry {
     }
 
     throw new Error(
-      "No configured image providers. Set GOOGLE_AI_API_KEY in .env"
+      "No configured image providers. Set GOOGLE_AI_API_KEY or OPENAI_API_KEY in .env"
     );
   }
 

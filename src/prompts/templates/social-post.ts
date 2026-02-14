@@ -25,7 +25,7 @@ export function buildSocialPostPrompt(
   lines.push("- Headline should be the dominant text element, large and bold");
   lines.push("- Keep the design clean and scroll-stopping");
   lines.push("- Optimize for mobile viewing (text should be readable at small sizes)");
-  lines.push(`- Include ${brand.name} logo`);
+  lines.push("- Place the attached brand logo prominently at the top of the design");
 
   if (brand.social.instagram) {
     lines.push(`- Include handle: ${brand.social.instagram}`);

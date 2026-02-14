@@ -3,6 +3,7 @@
  */
 
 import { v4 as uuid } from "uuid";
+import sharp from "sharp";
 import type {
   Job,
   JobResult,
@@ -12,9 +13,15 @@ import type {
   ProviderResult,
   QualityReport,
   BrandProfile,
+  BrandLogo,
   MediaRecord,
+  MenuContent,
   SourceInput,
+  FlyerStyle,
 } from "../media/types.js";
+import { calculateMenuLayout } from "../text/layout.js";
+import { renderTextSvg } from "../text/svg-renderer.js";
+import { exportPptx } from "../export/pptx-exporter.js";
 import { generateIdempotencyKey, hashBuffer, hashString } from "./types.js";
 import { resolveFormats } from "../media/formats.js";
 import { buildPrompt, type PromptContext } from "../prompts/builder.js";
@@ -59,7 +66,7 @@ export class JobRunner {
     provider?: ImageProvider
   ): Promise<Job> {
     const formats = resolveFormats(request.formats);
-    const activeProvider = provider ?? this.registry.getProvider();
+    const activeProvider = provider ?? this.registry.getProvider(request.provider);
 
     const job: Job = {
       id: uuid(),
@@ -78,7 +85,8 @@ export class JobRunner {
     job.status = "running";
 
     // Load input images (brand assets + content images)
-    const brandImages = await this.loadBrandImages(brand);
+    const { images: brandImages, preferredBackground } =
+      await this.loadBrandImages(brand, request.style, request.customPrompt);
     const contentImages = await this.loadContentImages(request.images);
 
     // Track source inputs for metadata
@@ -131,7 +139,8 @@ export class JobRunner {
         activeProvider,
         brandImages,
         contentImages,
-        sourceInputs
+        sourceInputs,
+        preferredBackground
       );
       job.results.push(result);
 
@@ -165,11 +174,11 @@ export class JobRunner {
     provider: ImageProvider,
     brandImages: LoadedImage[],
     contentImages: LoadedImage[],
-    sourceInputs: SourceInput[]
+    sourceInputs: SourceInput[],
+    preferredBackground?: "light" | "dark"
   ): Promise<JobResult> {
     const warnings: string[] = [];
 
-    // Build prompt
     const promptCtx: PromptContext = {
       brand,
       format,
@@ -179,11 +188,12 @@ export class JobRunner {
       customPrompt: request.customPrompt,
       hasBrandAssets: brandImages.length > 0,
       hasContentImages: contentImages.length > 0,
+      preferredBackground,
+      textOverlay: request.textOverlay,
     };
     const prompt = buildPrompt(promptCtx);
     const promptHash = hashString(prompt);
 
-    // Assemble provider images
     const providerImages = [
       ...brandImages.map((img) => ({
         data: img.data,
@@ -217,7 +227,10 @@ export class JobRunner {
       const result: ProviderResult = await provider.generate({
         prompt,
         images: providerImages,
-        outputConfig: { aspectRatio: format.aspectRatio },
+        outputConfig: {
+          aspectRatio: format.aspectRatio,
+          quality: request.quality,
+        },
       });
 
       if (!result.success) {
@@ -259,6 +272,50 @@ export class JobRunner {
           result.imageBuffer!,
           format
         );
+      }
+
+      // Text overlay: composite programmatic text onto background
+      if (request.textOverlay && request.mediaType === "print-menu") {
+        const menuContent = request.content as MenuContent;
+        const layout = calculateMenuLayout(menuContent, brand, format);
+        const textSvg = renderTextSvg(layout);
+
+        // Save background separately for re-use
+        const bgSaveInfo = saveMedia(
+          processedBuffer,
+          {
+            brandId: request.brandId,
+            mediaType: request.mediaType,
+            format: format.name,
+            campaign: request.campaign,
+            version: 1,
+            suffix: "background",
+          },
+          this.outputDir
+        );
+        warnings.push(`Background saved: ${bgSaveInfo.filePath}`);
+
+        // Composite text SVG onto background
+        processedBuffer = await sharp(processedBuffer)
+          .composite([{ input: textSvg, top: 0, left: 0 }])
+          .png()
+          .toBuffer();
+
+        // Export PPTX if requested
+        if (request.exportPptx) {
+          try {
+            const pptxPath = bgSaveInfo.filePath.replace(
+              /-background\.png$/,
+              ".pptx"
+            );
+            exportPptx(bgSaveInfo.filePath, layout, pptxPath);
+            warnings.push(`PPTX exported: ${pptxPath}`);
+          } catch (err) {
+            warnings.push(
+              `PPTX export failed: ${err instanceof Error ? err.message : err}`
+            );
+          }
+        }
       }
 
       // Quality gate (on processed/resized image)
@@ -365,9 +422,24 @@ export class JobRunner {
     return undefined;
   }
 
-  private async loadBrandImages(brand: BrandProfile): Promise<LoadedImage[]> {
+  private async loadBrandImages(
+    brand: BrandProfile,
+    style?: FlyerStyle,
+    customPrompt?: string
+  ): Promise<{
+    images: LoadedImage[];
+    preferredBackground?: "light" | "dark";
+  }> {
     const images: LoadedImage[] = [];
-    for (const logo of brand.logos) {
+    const primaryLogos = brand.logos.filter(
+      (l) => l.type === "primary" || l.type === "secondary"
+    );
+
+    // Determine which background the design will likely have
+    const bg = inferBackground(style, customPrompt);
+    const selected = selectLogosForBackground(primaryLogos, bg);
+
+    for (const logo of selected) {
       const resolved = logo.resolvedPath ?? logo.path;
       try {
         const loaded = loadImageFile(resolved);
@@ -383,7 +455,8 @@ export class JobRunner {
         // Skip missing brand assets with warning
       }
     }
-    return images;
+
+    return { images, preferredBackground: bg };
   }
 
   private async loadContentImages(
@@ -409,9 +482,309 @@ export class JobRunner {
     return images;
   }
 
+  /**
+   * Edit an existing image by sending it to the provider with instructions.
+   * Skips brand image loading and prompt building — uses instructions directly.
+   */
+  async runEdit(
+    request: GenerationRequest,
+    brand: BrandProfile,
+    provider?: ImageProvider
+  ): Promise<Job> {
+    if (!request.editSource || !request.editInstructions) {
+      throw new Error("editSource and editInstructions are required for edit mode");
+    }
+
+    const formats = resolveFormats(request.formats);
+    const activeProvider = provider ?? this.registry.getProvider(request.provider);
+
+    const job: Job = {
+      id: uuid(),
+      idempotencyKey: "",
+      status: "running",
+      request,
+      results: [],
+      attempts: 0,
+      maxRetries: this.maxRetries,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      warnings: [],
+    };
+    this.jobs.set(job.id, job);
+
+    // Load the source image
+    const sourceLoaded = loadImageFile(request.editSource);
+    if (!sourceLoaded) {
+      throw new Error(`Could not load source image: ${request.editSource}`);
+    }
+
+    const sourceImage: LoadedImage = {
+      data: sourceLoaded.data,
+      mimeType: sourceLoaded.mimeType,
+      path: request.editSource,
+      name: request.editSource.split("/").pop() ?? "source",
+    };
+
+    // Load any additional content images
+    const contentImages = await this.loadContentImages(request.images);
+
+    const sourceInputs: SourceInput[] = [
+      {
+        originalPath: sourceImage.path,
+        originalName: sourceImage.name,
+        contentHash: hashBuffer(sourceImage.data),
+        role: "template" as const,
+      },
+      ...contentImages.map((img) => ({
+        originalPath: img.path,
+        originalName: img.name,
+        contentHash: hashBuffer(img.data),
+        role: "content" as const,
+      })),
+    ];
+
+    for (let i = 0; i < formats.length; i++) {
+      const format = formats[i];
+      const result = await this.editForFormat(
+        job,
+        request,
+        brand,
+        format,
+        activeProvider,
+        sourceImage,
+        contentImages,
+        sourceInputs
+      );
+      job.results.push(result);
+
+      if (i < formats.length - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, this.requestDelayMs)
+        );
+      }
+    }
+
+    const allSuccess = job.results.every((r) => r.success);
+    const anySuccess = job.results.some((r) => r.success);
+    job.status = allSuccess ? "completed" : anySuccess ? "completed" : "failed";
+    job.updatedAt = new Date().toISOString();
+
+    for (const result of job.results) {
+      job.warnings.push(...result.warnings);
+    }
+
+    return job;
+  }
+
+  private async editForFormat(
+    job: Job,
+    request: GenerationRequest,
+    brand: BrandProfile,
+    format: FormatConfig,
+    provider: ImageProvider,
+    sourceImage: LoadedImage,
+    contentImages: LoadedImage[],
+    sourceInputs: SourceInput[]
+  ): Promise<JobResult> {
+    const warnings: string[] = [];
+    const prompt = request.editInstructions!;
+    const promptHash = hashString(prompt);
+
+    const providerImages = [
+      {
+        data: sourceImage.data,
+        mimeType: sourceImage.mimeType,
+        role: "template" as const,
+      },
+      ...contentImages.map((img) => ({
+        data: img.data,
+        mimeType: img.mimeType,
+        role: "content" as const,
+      })),
+    ];
+
+    let lastError = "";
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      job.attempts++;
+
+      const cost = this.registry.estimateCost(1);
+      if (!this.registry.checkBudget(cost.costPerGeneration)) {
+        return {
+          format: format.name,
+          success: false,
+          error: "Daily budget exceeded",
+          warnings,
+        };
+      }
+
+      const result: ProviderResult = await provider.generate({
+        prompt,
+        images: providerImages,
+        outputConfig: {
+          aspectRatio: format.aspectRatio,
+          quality: request.quality,
+        },
+      });
+
+      if (!result.success) {
+        if (
+          result.errorType === "auth" ||
+          result.errorType === "validation" ||
+          result.errorType === "budget"
+        ) {
+          return {
+            format: format.name,
+            success: false,
+            error: result.error,
+            warnings,
+          };
+        }
+        lastError = result.error ?? "Unknown error";
+        if (attempt < this.maxRetries) {
+          job.status = "retrying";
+          const backoff = Math.pow(2, attempt) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, backoff));
+          continue;
+        }
+        break;
+      }
+
+      if (result.costCents) {
+        this.registry.recordUsage(result.costCents);
+      }
+
+      let processedBuffer: Buffer;
+      if (format.category === "print") {
+        processedBuffer = await processPrintImage(result.imageBuffer!, format, {
+          printReady: request.printReady,
+        });
+      } else {
+        processedBuffer = await processSocialImage(
+          result.imageBuffer!,
+          format
+        );
+      }
+
+      const qualityReport: QualityReport = await runQualityGate(
+        processedBuffer,
+        {
+          targetFormat: format,
+          mediaType: request.mediaType,
+          brandColors: Object.values(brand.colors),
+        }
+      );
+
+      if (!qualityReport.passed) {
+        lastError = `Quality check failed: ${qualityReport.checks
+          .filter((c) => c.result === "fail")
+          .map((c) => c.message)
+          .join("; ")}`;
+        if (attempt < this.maxRetries) {
+          job.status = "retrying";
+          continue;
+        }
+        break;
+      }
+
+      warnings.push(...qualityReport.warnings);
+
+      const version = 1;
+      const { filePath, fileSize } = saveMedia(
+        processedBuffer,
+        {
+          brandId: request.brandId,
+          mediaType: request.mediaType,
+          format: format.name,
+          campaign: request.campaign,
+          version,
+        },
+        this.outputDir
+      );
+
+      const record: MediaRecord = {
+        schemaVersion: 1,
+        id: uuid(),
+        jobId: job.id,
+        brandId: request.brandId,
+        mediaType: request.mediaType,
+        format: format.name,
+        parentId: request.parentId,
+        campaign: request.campaign,
+        tags: request.tags ?? [],
+        version,
+        provider: provider.name,
+        providerModel: result.model ?? "unknown",
+        promptHash,
+        sourceInputs,
+        generationSeed: request.forceNew ? uuid() : undefined,
+        style: request.style,
+        customPrompt: request.editInstructions,
+        filePath,
+        fileSize,
+        contentHash: hashBuffer(processedBuffer),
+        status: "generated",
+        generatedAt: new Date().toISOString(),
+        costCents: result.costCents,
+      };
+
+      saveMetadata(record, this.outputDir);
+
+      return {
+        format: format.name,
+        success: true,
+        mediaRecord: record,
+        warnings,
+        costCents: result.costCents,
+      };
+    }
+
+    return {
+      format: format.name,
+      success: false,
+      error: lastError || "Max retries exceeded",
+      warnings,
+    };
+  }
+
   getJob(jobId: string): Job | undefined {
     return this.jobs.get(jobId);
   }
+}
+
+/**
+ * Infer whether the design will have a light or dark background based on
+ * the chosen style and any custom prompt hints.
+ */
+function inferBackground(
+  style?: FlyerStyle,
+  customPrompt?: string
+): "light" | "dark" {
+  if (style === "neon" || style === "retro") return "dark";
+  if (style === "minimal") return "light";
+
+  const lower = customPrompt?.toLowerCase() ?? "";
+  if (lower.includes("dark background")) return "dark";
+  if (lower.includes("light background")) return "light";
+
+  // Default: dark backgrounds are more versatile for bar/venue media
+  return "dark";
+}
+
+/**
+ * Pick the best logo variant(s) for the expected background color.
+ * Returns at most 1 logo to avoid confusing the AI with multiple variants.
+ */
+function selectLogosForBackground(
+  logos: BrandLogo[],
+  background: "light" | "dark"
+): BrandLogo[] {
+  // Prefer logos tagged for this background
+  const matching = logos.filter((l) => l.use_on === background || l.use_on === "any");
+  if (matching.length > 0) return [matching[0]];
+
+  // Fallback: take the first available logo
+  if (logos.length > 0) return [logos[0]];
+  return [];
 }
 
 interface LoadedImage {

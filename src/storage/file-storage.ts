@@ -14,6 +14,8 @@ interface SaveOptions {
   format: string;
   campaign?: string;
   version: number;
+  /** Optional suffix appended before the extension, e.g. "background" */
+  suffix?: string;
 }
 
 /**
@@ -63,5 +65,6 @@ function buildOutputDir(outputDir: string, options: SaveOptions): string {
 function buildFilename(options: SaveOptions): string {
   const typePart = options.mediaType.replace("-", "_");
   const formatPart = options.format.toLowerCase();
-  return `${typePart}_${formatPart}_v${options.version}.png`;
+  const suffixPart = options.suffix ? `-${options.suffix}` : "";
+  return `${typePart}_${formatPart}_v${options.version}${suffixPart}.png`;
 }

@@ -17,6 +17,7 @@ import type {
 } from "../media/types.js";
 import { buildEventFlyerPrompt } from "./templates/event-flyer.js";
 import { buildPrintMenuPrompt } from "./templates/print-menu.js";
+import { buildPrintMenuBackgroundPrompt } from "./templates/print-menu-background.js";
 import { buildSocialPostPrompt } from "./templates/social-post.js";
 
 export const STYLE_DESCRIPTIONS: Record<FlyerStyle, string> = {
@@ -36,6 +37,8 @@ export interface PromptContext {
   hasTemplateImage?: boolean;
   hasBrandAssets?: boolean;
   hasContentImages?: boolean;
+  preferredBackground?: "light" | "dark";
+  textOverlay?: boolean;
 }
 
 /**
@@ -59,8 +62,8 @@ export function buildPrompt(ctx: PromptContext): string {
   // 5. Design rules
   sections.push(buildDesignRulesSection(ctx.brand));
 
-  // 6. Image context
-  if (ctx.hasTemplateImage || ctx.hasBrandAssets || ctx.hasContentImages) {
+  // 6. Image context (brand logos, template, content images)
+  if (ctx.hasBrandAssets || ctx.hasTemplateImage || ctx.hasContentImages) {
     sections.push(buildImageContextSection(ctx));
   }
 
@@ -115,6 +118,9 @@ function buildContentSection(ctx: PromptContext): string {
     case "event-flyer":
       return buildEventFlyerPrompt(ctx.content as EventContent, ctx.brand);
     case "print-menu":
+      if (ctx.textOverlay) {
+        return buildPrintMenuBackgroundPrompt(ctx.content as MenuContent, ctx.brand);
+      }
       return buildPrintMenuPrompt(ctx.content as MenuContent, ctx.brand);
     case "social-post":
       return buildSocialPostPrompt(ctx.content as SocialContent, ctx.brand);
@@ -164,15 +170,15 @@ ${required}`;
 function buildImageContextSection(ctx: PromptContext): string {
   const lines: string[] = ["## Attached Images"];
 
-  if (ctx.hasTemplateImage) {
+  if (ctx.hasBrandAssets) {
     lines.push(
-      "- **Template image**: Recreate this exact visual design but with the new content provided above. Match the layout, style, and composition."
+      "- **Brand logo**: The brand's logo. Place it prominently in the design (typically at the top), sized appropriately. Do not recreate or redraw the logo; use the attached image exactly as provided."
     );
   }
 
-  if (ctx.hasBrandAssets) {
+  if (ctx.hasTemplateImage) {
     lines.push(
-      "- **Brand logos/assets**: These are the brand's official logos and visual assets. Incorporate them into the design following the brand guidelines."
+      "- **Template image**: Recreate this exact visual design but with the new content provided above. Match the layout, style, and composition."
     );
   }
 

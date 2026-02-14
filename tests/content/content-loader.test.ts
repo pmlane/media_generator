@@ -89,5 +89,56 @@ Burger - $15`;
 
       expect(menu.sections).toHaveLength(2);
     });
+
+    it("parses items with parenthesized descriptions (no dash)", () => {
+      const text = `Specials
+Body and Blood (House infused spicy tequila, fresh raspberry, lime)
+Secular Haze THC Beverage (Fresh lime, Downshift THC beverage, black salt rim)`;
+
+      const menu = parseMenuText(text, "Drinks");
+
+      expect(menu.sections).toHaveLength(1);
+      expect(menu.sections[0].title).toBe("Specials");
+      expect(menu.sections[0].items).toHaveLength(2);
+      expect(menu.sections[0].items[0].name).toBe("Body and Blood");
+      expect(menu.sections[0].items[0].description).toBe(
+        "House infused spicy tequila, fresh raspberry, lime"
+      );
+      expect(menu.sections[0].items[1].name).toBe("Secular Haze THC Beverage");
+    });
+
+    it("parses items with double parentheses (qualifier + description)", () => {
+      const text = `Specials
+Ashes Sparkling Lemonade (NA) (Scratch made sparkling lemonade, activated charcoal)`;
+
+      const menu = parseMenuText(text, "Drinks");
+
+      expect(menu.sections[0].items).toHaveLength(1);
+      expect(menu.sections[0].items[0].name).toBe(
+        "Ashes Sparkling Lemonade (NA)"
+      );
+      expect(menu.sections[0].items[0].description).toBe(
+        "Scratch made sparkling lemonade, activated charcoal"
+      );
+    });
+
+    it("parses the Ghost Fan Party menu correctly", () => {
+      const text = `Ghost Fan Party Specials
+
+Ashes Sparkling Lemonade (NA) (Scratch made sparkling lemonade, activated charcoal)
+Body and Blood (House infused spicy tequila, fresh raspberry, lime)
+Stand By Him - Shot and a Beer (Shot of well booze, Sapporo)
+Secular Haze THC Beverage (Fresh lime, Downshift THC beverage, black salt rim)`;
+
+      const menu = parseMenuText(text, "Ghost Fan Party");
+
+      expect(menu.sections).toHaveLength(1);
+      expect(menu.sections[0].title).toBe("Ghost Fan Party Specials");
+      expect(menu.sections[0].items).toHaveLength(4);
+      expect(menu.sections[0].items[0].name).toBe("Ashes Sparkling Lemonade (NA)");
+      expect(menu.sections[0].items[1].name).toBe("Body and Blood");
+      expect(menu.sections[0].items[2].name).toBe("Stand By Him");
+      expect(menu.sections[0].items[3].name).toBe("Secular Haze THC Beverage");
+    });
   });
 });

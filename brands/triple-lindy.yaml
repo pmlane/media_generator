@@ -46,26 +46,26 @@ design_rules:
     - "Never use Comic Sans or overly decorative script fonts"
     - "Never use clip art or stock photo watermarks"
   required:
-    - "Always include the logo on generated media"
+    - "Place the attached brand logo prominently at the top of the design"
     - "Use brand colors as the dominant palette - accent colors from content are OK as secondary"
     - "Maintain high contrast between text and background (WCAG AA minimum)"
 
 logos:
   - id: logo-black
-    path: "../new_website/media_assets/logos/01 TL_black.png"
+    path: "../../new_website/media_assets/logos/01 TL_black.png"
     type: primary
     use_on: light
   - id: logo-red
-    path: "../new_website/media_assets/logos/02 TL_red.png"
+    path: "../../new_website/media_assets/logos/02 TL_red.png"
     type: primary
     use_on: dark
   - id: logo-white
-    path: "../new_website/media_assets/logos/03 TL_white.png"
+    path: "../../new_website/media_assets/logos/03 TL_white.png"
     type: primary
     use_on: dark
   - id: pdx-diver
-    path: "../new_website/media_assets/logos/PDX Diver - Free Space_No Background.png"
+    path: "../../new_website/media_assets/logos/PDX Diver - Free Space_No Background.png"
     type: mascot
   - id: rodney-head
-    path: "../new_website/media_assets/logos/Rodney Head.png"
+    path: "../../new_website/media_assets/logos/Rodney Head.png"
     type: icon

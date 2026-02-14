@@ -43,7 +43,7 @@ describe("Prompt Builder", () => {
 
       // Should contain design rules
       expect(prompt).toContain("No Comic Sans");
-      expect(prompt).toContain("Include logo");
+      expect(prompt).toContain("Place the attached brand logo prominently");
 
       // Should contain style
       expect(prompt).toContain(STYLE_DESCRIPTIONS.vibrant);
@@ -139,7 +139,7 @@ describe("Prompt Builder", () => {
       expect(prompt).toContain("Recreate");
     });
 
-    it("describes brand assets role", () => {
+    it("includes brand logo placement instruction when brand assets present", () => {
       const prompt = buildPrompt({
         brand,
         format: INSTAGRAM_SQUARE,
@@ -148,7 +148,9 @@ describe("Prompt Builder", () => {
         hasBrandAssets: true,
       });
 
-      expect(prompt).toContain("Brand logos");
+      expect(prompt).toContain("Brand logo");
+      expect(prompt).toContain("Place it prominently");
+      expect(prompt).toContain("use the attached image exactly as provided");
     });
 
     it("describes content images role", () => {

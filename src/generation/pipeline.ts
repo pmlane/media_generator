@@ -56,6 +56,17 @@ export class GenerationPipeline {
     return job;
   }
 
+  /**
+   * Edit an existing image using the provider
+   */
+  async edit(
+    request: GenerationRequest,
+    provider?: ImageProvider
+  ): Promise<Job> {
+    const brand = loadBrand(request.brandId, this.brandsDir);
+    return this.runner.runEdit(request, brand, provider);
+  }
+
   getRunner(): JobRunner {
     return this.runner;
   }

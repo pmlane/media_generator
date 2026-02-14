@@ -40,7 +40,7 @@ design_rules:
   prohibited:
     - "No Comic Sans"
   required:
-    - "Include logo"
+    - "Place the attached brand logo prominently at the top of the design"
 
 logos:
   - id: test-logo

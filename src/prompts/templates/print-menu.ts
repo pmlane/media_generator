@@ -42,7 +42,7 @@ export function buildPrintMenuPrompt(
   lines.push("- Use clear visual hierarchy: title > section headers > items");
   lines.push("- Prices should be right-aligned or clearly associated with their item");
   lines.push("- Section dividers should be subtle but clear");
-  lines.push(`- Include ${brand.name} branding and logo`);
+  lines.push("- Place the attached brand logo prominently at the top of the design");
   lines.push(
     `- Venue: ${brand.venue.address}, ${brand.venue.city}, ${brand.venue.state}`
   );

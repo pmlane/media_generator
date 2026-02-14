@@ -113,6 +113,30 @@ export const A4: FormatConfig = {
   safeMargin: PRINT_SAFE_MARGIN,
 };
 
+export const A6: FormatConfig = {
+  name: "A6",
+  label: "A6 (105x148mm)",
+  width: 1240,
+  height: 1748,
+  aspectRatio: "105:148",
+  dpi: 300,
+  category: "print",
+  bleed: PRINT_BLEED,
+  safeMargin: PRINT_SAFE_MARGIN,
+};
+
+export const TABLE_TENT: FormatConfig = {
+  name: "TABLE_TENT",
+  label: "Table Tent (5x7)",
+  width: 1500,
+  height: 2100,
+  aspectRatio: "5:7",
+  dpi: 300,
+  category: "print",
+  bleed: 0,
+  safeMargin: PRINT_SAFE_MARGIN,
+};
+
 // --- Format Registry ---
 
 export const SOCIAL_FORMATS: Record<string, FormatConfig> = {
@@ -128,6 +152,8 @@ export const PRINT_FORMATS: Record<string, FormatConfig> = {
   "half-letter": HALF_LETTER,
   legal: LEGAL,
   a4: A4,
+  a6: A6,
+  "table-tent": TABLE_TENT,
 };
 
 export const ALL_FORMATS: Record<string, FormatConfig> = {

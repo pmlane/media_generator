@@ -93,17 +93,18 @@ export function parseMenuText(text: string, title = "Menu"): MenuContent {
  *   "Name — $Price"
  *   "Name - $Price (description)"
  *   "Name $Price"
+ *   "Name - Description" (no price)
  */
 function parseMenuItem(line: string): MenuItem | null {
   // Pattern: Name [-—] $Price [(description)]
-  const dashMatch = line.match(
+  const dashPriceMatch = line.match(
     /^(.+?)\s*[-—]+\s*(\$[\d.]+)\s*(?:\((.+?)\))?\s*$/
   );
-  if (dashMatch) {
+  if (dashPriceMatch) {
     return {
-      name: dashMatch[1].trim(),
-      price: dashMatch[2],
-      description: dashMatch[3]?.trim(),
+      name: dashPriceMatch[1].trim(),
+      price: dashPriceMatch[2],
+      description: dashPriceMatch[3]?.trim(),
     };
   }
 
@@ -113,6 +114,24 @@ function parseMenuItem(line: string): MenuItem | null {
     return {
       name: spaceMatch[1].trim(),
       price: spaceMatch[2],
+    };
+  }
+
+  // Pattern: Name - Description (no price, dash-separated)
+  const dashDescMatch = line.match(/^(.+?)\s*[-—]+\s+(.+)$/);
+  if (dashDescMatch) {
+    return {
+      name: dashDescMatch[1].trim(),
+      description: dashDescMatch[2].trim(),
+    };
+  }
+
+  // Pattern: Name (description) — last parenthesized group is description
+  const parenDescMatch = line.match(/^(.+?)\s+\(([^)]+)\)\s*$/);
+  if (parenDescMatch) {
+    return {
+      name: parenDescMatch[1].trim(),
+      description: parenDescMatch[2].trim(),
     };
   }
 

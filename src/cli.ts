@@ -13,7 +13,8 @@ import { GenerationPipeline } from "./generation/pipeline.js";
 import { loadBrand, listBrands, validateBrandAssets } from "./brands/loader.js";
 import { queryLibrary, findById, updateRecordStatus } from "./storage/library.js";
 import { parseMenuText, loadMenuFile } from "./content/content-loader.js";
-import { ALL_FORMATS } from "./media/formats.js";
+import { ALL_FORMATS, resolveFormats } from "./media/formats.js";
+import { buildPrompt, type PromptContext } from "./prompts/builder.js";
 import type {
   GenerationRequest,
   EventContent,
@@ -49,9 +50,13 @@ generate
   .option("--image <paths...>", "Content images to include")
   .option("--like <id>", "Use a previous generation as template")
   .option("--custom-prompt <text>", "Additional instructions for the AI")
+  .option("--logo-color <hex>", "Tint the logo with a hex color, e.g. #8B00FF")
+  .option("--provider <name>", "Image provider: openai, gemini")
+  .option("--quality <level>", "Image quality: low, medium, high (OpenAI only)")
   .option("--tag <tags...>", "Tags for organization")
   .option("--campaign <name>", "Campaign name")
   .option("--new", "Force new generation (bypass idempotency)")
+  .option("--dry-run", "Preview prompt and cost without generating")
   .option("--output <dir>", "Output directory", "output")
   .action(async (opts) => {
     const content: EventContent = {
@@ -70,6 +75,9 @@ generate
       content,
       style: opts.style,
       customPrompt: opts.customPrompt,
+      logoColor: opts.logoColor,
+      provider: opts.provider,
+      quality: opts.quality,
       images: opts.image,
       parentId: opts.like,
       forceNew: opts.new,
@@ -77,7 +85,11 @@ generate
       campaign: opts.campaign,
     };
 
-    await runGeneration(request, opts.output);
+    if (opts.dryRun) {
+      await runDryRun(request);
+    } else {
+      await runGeneration(request, opts.output);
+    }
   });
 
 // Generate menu
@@ -95,9 +107,15 @@ generate
   .option("--image <paths...>", "Reference images")
   .option("--reference <path>", "Reference image for style inspiration")
   .option("--custom-prompt <text>", "Additional instructions")
+  .option("--logo-color <hex>", "Tint the logo with a hex color, e.g. #8B00FF")
+  .option("--provider <name>", "Image provider: openai, gemini")
+  .option("--quality <level>", "Image quality: low, medium, high (OpenAI only)")
   .option("--tag <tags...>", "Tags")
   .option("--campaign <name>", "Campaign name")
+  .option("--text-overlay", "Use programmatic text rendering (no AI text)")
+  .option("--export-pptx", "Also export editable PowerPoint file")
   .option("--new", "Force new generation")
+  .option("--dry-run", "Preview prompt and cost without generating")
   .option("--output <dir>", "Output directory", "output")
   .action(async (opts) => {
     let menuContent: MenuContent;
@@ -132,14 +150,23 @@ generate
       content: menuContent,
       style: opts.style,
       customPrompt: opts.customPrompt,
+      logoColor: opts.logoColor,
+      provider: opts.provider,
+      quality: opts.quality,
       images: images.length > 0 ? images : undefined,
       forceNew: opts.new,
       tags: opts.tag,
       campaign: opts.campaign,
       sides: parseInt(opts.sides),
+      textOverlay: opts.textOverlay,
+      exportPptx: opts.exportPptx,
     };
 
-    await runGeneration(request, opts.output);
+    if (opts.dryRun) {
+      await runDryRun(request);
+    } else {
+      await runGeneration(request, opts.output);
+    }
   });
 
 // Generate social post
@@ -154,9 +181,13 @@ generate
   .option("--image <paths...>", "Content images to include")
   .option("--like <id>", "Use a previous generation as template")
   .option("--custom-prompt <text>", "Additional instructions")
+  .option("--logo-color <hex>", "Tint the logo with a hex color, e.g. #8B00FF")
+  .option("--provider <name>", "Image provider: openai, gemini")
+  .option("--quality <level>", "Image quality: low, medium, high (OpenAI only)")
   .option("--tag <tags...>", "Tags")
   .option("--campaign <name>", "Campaign name")
   .option("--new", "Force new generation")
+  .option("--dry-run", "Preview prompt and cost without generating")
   .option("--output <dir>", "Output directory", "output")
   .action(async (opts) => {
     const content: SocialContent = {
@@ -173,6 +204,9 @@ generate
       content,
       style: opts.style,
       customPrompt: opts.customPrompt,
+      logoColor: opts.logoColor,
+      provider: opts.provider,
+      quality: opts.quality,
       images: opts.image,
       parentId: opts.like,
       forceNew: opts.new,
@@ -180,7 +214,103 @@ generate
       campaign: opts.campaign,
     };
 
-    await runGeneration(request, opts.output);
+    if (opts.dryRun) {
+      await runDryRun(request);
+    } else {
+      await runGeneration(request, opts.output);
+    }
+  });
+
+// Generate edit (modify an existing image)
+generate
+  .command("edit")
+  .description("Edit an existing generated image")
+  .requiredOption("--source <path>", "Path to the image to edit")
+  .requiredOption("--instructions <text>", "What to change in the image")
+  .requiredOption("--brand <id>", "Brand profile ID")
+  .requiredOption("--format <formats...>", "Output formats")
+  .option("--image <paths...>", "Additional reference images")
+  .option("--provider <name>", "Image provider: openai, gemini")
+  .option("--quality <level>", "Image quality: low, medium, high (OpenAI only)")
+  .option("--tag <tags...>", "Tags for organization")
+  .option("--campaign <name>", "Campaign name")
+  .option("--new", "Force new generation (bypass idempotency)")
+  .option("--dry-run", "Preview instructions without generating")
+  .option("--output <dir>", "Output directory", "output")
+  .action(async (opts) => {
+    const sourcePath = opts.source.replace(/^~/, process.env.HOME ?? "~");
+    if (!existsSync(sourcePath)) {
+      console.error(`Error: Source image not found: ${sourcePath}`);
+      process.exit(1);
+    }
+
+    const request: GenerationRequest = {
+      brandId: opts.brand,
+      mediaType: "print-menu",
+      formats: opts.format,
+      content: { title: "Edit", sections: [] } as MenuContent,
+      provider: opts.provider,
+      quality: opts.quality,
+      images: opts.image,
+      forceNew: opts.new,
+      tags: opts.tag,
+      campaign: opts.campaign,
+      editSource: sourcePath,
+      editInstructions: opts.instructions,
+    };
+
+    if (opts.dryRun) {
+      console.log(`\n--- DRY RUN: edit ---\n`);
+      console.log(`Source: ${sourcePath}`);
+      console.log(`Format: ${opts.format.join(", ")}`);
+      console.log(`\n=== EDIT INSTRUCTIONS ===`);
+      console.log(opts.instructions);
+      console.log(`\n--- No API call made ---`);
+    } else {
+      console.log(`Editing image for brand "${opts.brand}"...`);
+      console.log(`Source: ${sourcePath}`);
+      console.log(`Formats: ${opts.format.join(", ")}`);
+
+      try {
+        const pipeline = new GenerationPipeline({ outputDir: opts.output });
+        const job = await pipeline.edit(request);
+
+        console.log(`\nJob ${job.id.slice(0, 8)} - ${job.status}`);
+
+        let totalCost = 0;
+        for (const result of job.results) {
+          if (result.success) {
+            console.log(`  [OK] ${result.format}: ${result.mediaRecord!.filePath}`);
+            if (result.costCents) {
+              console.log(`       Cost: ${result.costCents}c`);
+              totalCost += result.costCents;
+            }
+          } else {
+            console.log(`  [FAIL] ${result.format}: ${result.error}`);
+          }
+        }
+
+        if (totalCost > 0) {
+          const dailyBudget = Number(process.env.DAILY_BUDGET_CENTS) || 500;
+          console.log(`\nCost: ${totalCost}c ($${(totalCost / 100).toFixed(2)}) | Budget: ${dailyBudget}c ($${(dailyBudget / 100).toFixed(2)})`);
+        }
+
+        if (job.warnings.length > 0) {
+          console.log(`\nWarnings:`);
+          for (const w of job.warnings) {
+            console.log(`  - ${w}`);
+          }
+        }
+
+        const failed = job.results.filter((r) => !r.success);
+        if (failed.length > 0) {
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    }
   });
 
 // --- Brands Commands ---
@@ -305,6 +435,61 @@ library
 
 // --- Helper Functions ---
 
+async function runDryRun(request: GenerationRequest): Promise<void> {
+  console.log(`\n--- DRY RUN: ${request.mediaType} for "${request.brandId}" ---\n`);
+
+  const brand = loadBrand(request.brandId);
+  const formats = resolveFormats(request.formats);
+
+  // Determine provider
+  const providerName = request.provider ?? (process.env.OPENAI_API_KEY ? "openai" : "gemini");
+  console.log(`Provider: ${providerName}`);
+  if (request.quality) {
+    console.log(`Quality: ${request.quality}`);
+  }
+  console.log();
+
+  const costPerImage = providerName === "openai"
+    ? (Number(process.env.OPENAI_COST_PER_IMAGE_CENTS) || 4)
+    : (Number(process.env.GEMINI_COST_PER_IMAGE_CENTS) || 4);
+  const maxRetries = Number(process.env.MAX_RETRIES) || 2;
+
+  // Build prompt for the first format to show what would be sent
+  const promptCtx: PromptContext = {
+    brand,
+    format: formats[0],
+    mediaType: request.mediaType,
+    content: request.content,
+    style: request.style,
+    customPrompt: request.customPrompt,
+    hasBrandAssets: brand.logos.some(
+      (l) => l.type === "primary" || l.type === "secondary"
+    ),
+    textOverlay: request.textOverlay,
+  };
+  const prompt = buildPrompt(promptCtx);
+
+  console.log("=== PROMPT ===");
+  console.log(prompt);
+  console.log("\n=== FORMATS ===");
+  for (const f of formats) {
+    console.log(`  ${f.name}: ${f.width}x${f.height} (${f.category})`);
+  }
+
+  console.log("\n=== COST ESTIMATE ===");
+  const bestCase = formats.length * costPerImage;
+  const worstCase = formats.length * costPerImage * (1 + maxRetries);
+  console.log(`  Per image: ${costPerImage}c`);
+  console.log(`  Formats: ${formats.length}`);
+  console.log(`  Best case: ${bestCase}c ($${(bestCase / 100).toFixed(2)})`);
+  console.log(`  Worst case (with retries): ${worstCase}c ($${(worstCase / 100).toFixed(2)})`);
+
+  const dailyBudget = Number(process.env.DAILY_BUDGET_CENTS) || 500;
+  console.log(`  Daily budget: ${dailyBudget}c ($${(dailyBudget / 100).toFixed(2)})`);
+
+  console.log("\n--- No API call made ---");
+}
+
 async function runGeneration(
   request: GenerationRequest,
   outputDir: string
@@ -320,15 +505,23 @@ async function runGeneration(
 
     console.log(`\nJob ${job.id.slice(0, 8)} - ${job.status}`);
 
+    let totalCost = 0;
     for (const result of job.results) {
       if (result.success) {
         console.log(`  [OK] ${result.format}: ${result.mediaRecord!.filePath}`);
         if (result.costCents) {
           console.log(`       Cost: ${result.costCents}c`);
+          totalCost += result.costCents;
         }
       } else {
         console.log(`  [FAIL] ${result.format}: ${result.error}`);
       }
+    }
+
+    // Cost summary
+    if (totalCost > 0) {
+      const dailyBudget = Number(process.env.DAILY_BUDGET_CENTS) || 500;
+      console.log(`\nCost: ${totalCost}c ($${(totalCost / 100).toFixed(2)}) | Budget: ${dailyBudget}c ($${(dailyBudget / 100).toFixed(2)})`);
     }
 
     if (job.warnings.length > 0) {
