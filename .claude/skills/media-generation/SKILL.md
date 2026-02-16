@@ -49,7 +49,8 @@ npx tsx src/cli.ts generate menu \
   --title "Cocktail Menu" \
   --format half-letter \
   --text-overlay \
-  --export-pptx
+  --export-pptx \
+  --export-pdf
 ```
 
 From inline text (create a temp file):
@@ -131,7 +132,7 @@ When a user asks to create media:
    - Provider: gemini (default) or openai
    - Campaign or tags for organization
    - Any images to include
-   - For menus: `--text-overlay` for programmatic text, `--export-pptx` for editable PowerPoint
+   - For menus: `--text-overlay` for programmatic text, `--export-pptx` for editable PowerPoint, `--export-pdf` for editable PDF
 4. **Generate** using the CLI
 5. **Show results**: file paths and any warnings
 6. **Iterate** if needed: adjust prompt, style, or try `--new` for a different variation
@@ -180,6 +181,7 @@ When a user asks to create media:
 |------|-------------|
 | `--text-overlay` | Programmatic text rendering over AI background (crisp vector text) |
 | `--export-pptx` | Also export an editable PowerPoint file |
+| `--export-pdf` | Also export an editable PDF file |
 | `--reference <path>` | Reference image for style inspiration |
 | `--sides <n>` | Number of sides: 1 or 2 |
 | `--subtitle <text>` | Menu subtitle |
@@ -223,6 +225,7 @@ Standalone utilities for re-export and debugging workflows:
 - Use `--like <id>` to create variations of a successful design
 - Use `--text-overlay` for menus when you want crisp, editable text over an AI-generated background
 - Use `--export-pptx` to get an editable PowerPoint for further design tweaks
+- Use `--export-pdf` to get an editable PDF for further design tweaks
 - Use `--provider openai` for a different artistic style (or as fallback)
 
 ## Project Structure

@@ -56,6 +56,7 @@ npm run typecheck
 |------|-------------|
 | `--text-overlay` | Programmatic text rendering over AI background (no AI-generated text) |
 | `--export-pptx` | Also export an editable PowerPoint file |
+| `--export-pdf` | Also export an editable PDF file |
 | `--reference <path>` | Reference image for style inspiration |
 | `--sides <n>` | Number of sides: 1 or 2 |
 

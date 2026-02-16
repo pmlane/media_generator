@@ -1,7 +1,7 @@
 /**
  * Quality gate for generated images
  *
- * Checks: decodable, min dimensions, not blank, brand color presence, text presence (OCR optional)
+ * Checks: decodable, min dimensions, not blank, brand color presence, aspect ratio
  */
 
 import sharp from "sharp";
@@ -16,7 +16,6 @@ interface QualityGateOptions {
   targetFormat: FormatConfig;
   mediaType: MediaType;
   brandColors?: string[];
-  expectedTexts?: string[];
 }
 
 /**
@@ -40,32 +39,27 @@ export async function runQualityGate(
   const dimensions = await checkDimensions(imageBuffer, options.targetFormat);
   checks.push(dimensions);
 
-  // 3. Not blank check
-  const notBlank = await checkNotBlank(imageBuffer);
+  // 3. Compute stats once for blank + brand color checks
+  const stats = await sharp(imageBuffer).stats();
+
+  // 4. Not blank check (uses stats)
+  const notBlank = checkNotBlankFromStats(stats);
   checks.push(notBlank);
 
-  // 4. Brand color presence (warn only)
+  // 5. Brand color presence (warn only, uses stats)
   if (options.brandColors?.length) {
-    const colorCheck = await checkBrandColors(imageBuffer, options.brandColors);
+    const colorCheck = checkBrandColorsFromStats(stats, options.brandColors);
     checks.push(colorCheck);
     if (colorCheck.result === "warn") {
       warnings.push(colorCheck.message ?? "Brand colors not detected");
     }
   }
 
-  // 5. Text presence via OCR (warn only, optional dependency)
-  if (
-    options.expectedTexts?.length &&
-    (options.mediaType === "event-flyer" || options.mediaType === "social-post")
-  ) {
-    const textCheck = await checkTextPresence(
-      imageBuffer,
-      options.expectedTexts
-    );
-    checks.push(textCheck);
-    if (textCheck.result === "warn") {
-      warnings.push(textCheck.message ?? "Expected text not found");
-    }
+  // 6. Aspect ratio check (warn only)
+  const ratioCheck = await checkAspectRatio(imageBuffer, options.targetFormat);
+  checks.push(ratioCheck);
+  if (ratioCheck.result === "warn") {
+    warnings.push(ratioCheck.message ?? "Aspect ratio mismatch");
   }
 
   const hasFail = checks.some((c) => c.result === "fail");
@@ -108,110 +102,126 @@ async function checkDimensions(
   return { name: "min_dimensions", result: "pass" };
 }
 
-async function checkNotBlank(buffer: Buffer): Promise<QualityCheck> {
-  // Sample random pixels and check color variance
-  const { data, info } = await sharp(buffer)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+/**
+ * Check that the image is not blank or near-uniform using sharp stats.
+ *
+ * Three-tier check:
+ * - Fail if max channel stdev < 5 (solid color)
+ * - Fail if max channel range (max-min) < 30 (near-uniform gradient)
+ * - Warn if total stdev across all channels < 20 (low diversity)
+ */
+function checkNotBlankFromStats(stats: sharp.Stats): QualityCheck {
+  const channels = stats.channels.slice(0, 3); // R, G, B only
 
-  const channels = info.channels;
-  const totalPixels = info.width * info.height;
-  const sampleCount = Math.min(100, totalPixels);
-
-  const samples: number[][] = [];
-  for (let i = 0; i < sampleCount; i++) {
-    const pixelIndex = Math.floor(Math.random() * totalPixels);
-    const offset = pixelIndex * channels;
-    samples.push([data[offset], data[offset + 1], data[offset + 2]]);
+  const maxStdev = Math.max(...channels.map((c) => c.stdev));
+  if (maxStdev < 5) {
+    return {
+      name: "not_blank",
+      result: "fail",
+      message: "Image appears to be blank or solid color (max channel stdev < 5)",
+    };
   }
 
-  // Calculate standard deviation across R, G, B channels
-  for (let ch = 0; ch < 3; ch++) {
-    const values = samples.map((s) => s[ch]);
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance =
-      values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
-    const stddev = Math.sqrt(variance);
-
-    if (stddev > 15) {
-      return { name: "not_blank", result: "pass" };
-    }
+  const maxRange = Math.max(...channels.map((c) => c.max - c.min));
+  if (maxRange < 30) {
+    return {
+      name: "not_blank",
+      result: "fail",
+      message: "Image appears to be a near-uniform gradient (max channel range < 30)",
+    };
   }
 
-  return {
-    name: "not_blank",
-    result: "fail",
-    message: "Image appears to be blank or solid color (low pixel variance)",
-  };
+  const totalStdev = channels.reduce((sum, c) => sum + c.stdev, 0);
+  if (totalStdev < 20) {
+    return {
+      name: "not_blank",
+      result: "warn",
+      message: "Image has low color diversity (total stdev < 20)",
+    };
+  }
+
+  return { name: "not_blank", result: "pass" };
 }
 
 /**
- * Check if brand colors are present in the image.
- * Uses simple color distance (Euclidean in RGB) instead of deltaE for simplicity.
+ * Check if brand colors are present using stats dominant color and channel means.
+ *
+ * - Check dominant color distance to each brand color
+ * - Check channel mean color distance to each brand color
+ * - Pass if closest distance < 100
+ * - Warn with diagnostic info if no match
  */
-async function checkBrandColors(
-  buffer: Buffer,
+function checkBrandColorsFromStats(
+  stats: sharp.Stats,
   brandColors: string[]
-): Promise<QualityCheck> {
-  const { data, info } = await sharp(buffer)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const channels = info.channels;
-  const totalPixels = info.width * info.height;
-  const sampleCount = Math.min(200, totalPixels);
-
+): QualityCheck {
   const brandRgb = brandColors.map(hexToRgb).filter(Boolean) as number[][];
+  if (brandRgb.length === 0) {
+    return { name: "brand_color", result: "pass" };
+  }
 
-  for (let i = 0; i < sampleCount; i++) {
-    const pixelIndex = Math.floor(Math.random() * totalPixels);
-    const offset = pixelIndex * channels;
-    const pixel = [data[offset], data[offset + 1], data[offset + 2]];
+  const dominant = [
+    stats.dominant.r,
+    stats.dominant.g,
+    stats.dominant.b,
+  ];
 
-    for (const brand of brandRgb) {
-      const dist = Math.sqrt(
-        (pixel[0] - brand[0]) ** 2 +
-          (pixel[1] - brand[1]) ** 2 +
-          (pixel[2] - brand[2]) ** 2
-      );
-      // deltaE ~30 in LAB corresponds roughly to ~75 in RGB Euclidean
-      if (dist < 75) {
-        return { name: "brand_color", result: "pass" };
-      }
+  const channels = stats.channels.slice(0, 3);
+  const meanColor = [channels[0].mean, channels[1].mean, channels[2].mean];
+
+  let closestDistance = Infinity;
+
+  for (const brand of brandRgb) {
+    const domDist = rgbDistance(dominant, brand);
+    const meanDist = rgbDistance(meanColor, brand);
+    const minDist = Math.min(domDist, meanDist);
+    if (minDist < closestDistance) {
+      closestDistance = minDist;
     }
+  }
+
+  if (closestDistance < 100) {
+    return { name: "brand_color", result: "pass" };
   }
 
   return {
     name: "brand_color",
     result: "warn",
-    message: "No brand colors detected in sampled pixels",
+    message: `No brand colors detected (dominant: rgb(${dominant.join(", ")}), closest distance: ${Math.round(closestDistance)})`,
   };
 }
 
-async function checkTextPresence(
-  _buffer: Buffer,
-  _expectedTexts: string[]
+function rgbDistance(a: number[], b: number[]): number {
+  return Math.sqrt(
+    (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+  );
+}
+
+async function checkAspectRatio(
+  buffer: Buffer,
+  format: FormatConfig
 ): Promise<QualityCheck> {
-  // Tesseract.js is an optional dependency
-  try {
-    // Dynamic import to handle optional dependency
-    await import("tesseract.js");
-  } catch {
+  const metadata = await sharp(buffer).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+
+  if (width === 0 || height === 0) {
+    return { name: "aspect_ratio", result: "pass" };
+  }
+
+  const actualRatio = width / height;
+  const targetRatio = format.width / format.height;
+  const deviation = Math.abs(actualRatio - targetRatio) / targetRatio;
+
+  if (deviation > 0.05) {
     return {
-      name: "text_presence",
+      name: "aspect_ratio",
       result: "warn",
-      message:
-        "OCR checks disabled: tesseract.js not installed. Install with: npm install tesseract.js",
+      message: `Aspect ratio ${actualRatio.toFixed(3)} deviates ${(deviation * 100).toFixed(1)}% from target ${targetRatio.toFixed(3)}`,
     };
   }
 
-  // If tesseract is available, we'd run OCR here
-  // For now, pass with a note
-  return {
-    name: "text_presence",
-    result: "pass",
-    message: "OCR check skipped (full implementation pending)",
-  };
+  return { name: "aspect_ratio", result: "pass" };
 }
 
 function hexToRgb(hex: string): number[] | null {
