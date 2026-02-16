@@ -207,10 +207,16 @@ export interface GenerationRequest {
   textOverlay?: boolean;
   /** Also export an editable PowerPoint file (requires textOverlay) */
   exportPptx?: boolean;
+  /** Also export an editable PDF file (requires textOverlay) */
+  exportPdf?: boolean;
   /** Path to an existing image to edit (edit mode) */
   editSource?: string;
   /** Edit instructions describing what to change */
   editInstructions?: string;
+  /** Override heading font family for text overlay */
+  headingFont?: string;
+  /** Override body font family for text overlay */
+  bodyFont?: string;
 }
 
 // --- Metadata ---

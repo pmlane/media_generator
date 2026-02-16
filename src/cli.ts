@@ -114,6 +114,7 @@ generate
   .option("--campaign <name>", "Campaign name")
   .option("--text-overlay", "Use programmatic text rendering (no AI text)")
   .option("--export-pptx", "Also export editable PowerPoint file")
+  .option("--export-pdf", "Also export editable PDF file")
   .option("--new", "Force new generation")
   .option("--dry-run", "Preview prompt and cost without generating")
   .option("--output <dir>", "Output directory", "output")
@@ -160,6 +161,7 @@ generate
       sides: parseInt(opts.sides),
       textOverlay: opts.textOverlay,
       exportPptx: opts.exportPptx,
+      exportPdf: opts.exportPdf,
     };
 
     if (opts.dryRun) {

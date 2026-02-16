@@ -20,14 +20,17 @@ import type {
   FlyerStyle,
 } from "../media/types.js";
 import { calculateMenuLayout } from "../text/layout.js";
+import { measureClearZone } from "../text/measure.js";
 import { renderTextSvg } from "../text/svg-renderer.js";
 import { exportPptx } from "../export/pptx-exporter.js";
+import { exportPdf } from "../export/pdf-exporter.js";
 import { generateIdempotencyKey, hashBuffer, hashString } from "./types.js";
 import { resolveFormats } from "../media/formats.js";
 import { buildPrompt, type PromptContext } from "../prompts/builder.js";
 import { runQualityGate } from "../quality/gate.js";
 import { processSocialImage } from "../processing/social.js";
 import { processPrintImage } from "../processing/print.js";
+import { tintLogo } from "../processing/tint.js";
 import { saveMedia, saveMetadata } from "../storage/file-storage.js";
 import { loadImageFile } from "../content/content-loader.js";
 import { ProviderRegistryImpl } from "../providers/registry.js";
@@ -87,6 +90,17 @@ export class JobRunner {
     // Load input images (brand assets + content images)
     const { images: brandImages, preferredBackground } =
       await this.loadBrandImages(brand, request.style, request.customPrompt);
+
+    // Tint brand logos if a custom color was requested
+    if (request.logoColor) {
+      for (let i = 0; i < brandImages.length; i++) {
+        brandImages[i] = {
+          ...brandImages[i],
+          data: await tintLogo(brandImages[i].data, request.logoColor),
+        };
+      }
+    }
+
     const contentImages = await this.loadContentImages(request.images);
 
     // Track source inputs for metadata
@@ -277,7 +291,12 @@ export class JobRunner {
       // Text overlay: composite programmatic text onto background
       if (request.textOverlay && request.mediaType === "print-menu") {
         const menuContent = request.content as MenuContent;
-        const layout = calculateMenuLayout(menuContent, brand, format);
+        const clearZone = await measureClearZone(processedBuffer);
+        const layout = calculateMenuLayout(menuContent, brand, format, clearZone, {
+          accentColor: request.logoColor,
+          headingFont: request.headingFont,
+          bodyFont: request.bodyFont,
+        });
         const textSvg = renderTextSvg(layout);
 
         // Save background separately for re-use
@@ -288,7 +307,6 @@ export class JobRunner {
             mediaType: request.mediaType,
             format: format.name,
             campaign: request.campaign,
-            version: 1,
             suffix: "background",
           },
           this.outputDir
@@ -313,6 +331,19 @@ export class JobRunner {
           } catch (err) {
             warnings.push(
               `PPTX export failed: ${err instanceof Error ? err.message : err}`
+            );
+          }
+        }
+
+        // Export editable PDF if requested
+        if (request.exportPdf) {
+          try {
+            const pdfPath = bgSaveInfo.filePath.replace(/-background\.png$/, "-editable.pdf");
+            await exportPdf(bgSaveInfo.filePath, layout, pdfPath, format.dpi);
+            warnings.push(`PDF exported: ${pdfPath}`);
+          } catch (err) {
+            warnings.push(
+              `PDF export failed: ${err instanceof Error ? err.message : err}`
             );
           }
         }
@@ -342,18 +373,14 @@ export class JobRunner {
 
       warnings.push(...qualityReport.warnings);
 
-      // Determine version
-      const version = 1; // TODO: increment from existing
-
-      // Save file
-      const { filePath, fileSize } = saveMedia(
+      // Save file (version auto-incremented)
+      const { filePath, fileSize, version } = saveMedia(
         processedBuffer,
         {
           brandId: request.brandId,
           mediaType: request.mediaType,
           format: format.name,
           campaign: request.campaign,
-          version,
         },
         this.outputDir
       );
@@ -688,15 +715,13 @@ export class JobRunner {
 
       warnings.push(...qualityReport.warnings);
 
-      const version = 1;
-      const { filePath, fileSize } = saveMedia(
+      const { filePath, fileSize, version } = saveMedia(
         processedBuffer,
         {
           brandId: request.brandId,
           mediaType: request.mediaType,
           format: format.name,
           campaign: request.campaign,
-          version,
         },
         this.outputDir
       );

@@ -7,9 +7,13 @@
  */
 
 import type { TextLayout, TextElement } from "./layout.js";
+import { needsWrapping, wrapText } from "./wrap.js";
 
-/** Approximate character width as fraction of font size (monospace-ish estimate) */
-const CHAR_WIDTH_RATIO = 0.55;
+const SERIF_FONTS = new Set([
+  "playfair display", "didot", "baskerville", "palatino", "bodoni",
+  "garamond", "georgia", "times new roman", "crimson text", "cormorant",
+  "eb garamond", "lora", "merriweather", "spectral", "cochin",
+]);
 
 /**
  * Render a TextLayout as an SVG string
@@ -29,8 +33,9 @@ export function renderTextSvg(layout: TextLayout): Buffer {
 }
 
 function renderElement(el: TextElement): string {
+  const fallback = SERIF_FONTS.has(el.fontFamily.toLowerCase()) ? "serif" : "sans-serif";
   const style = [
-    `font-family: '${el.fontFamily}', sans-serif`,
+    `font-family: '${el.fontFamily}', ${fallback}`,
     `font-size: ${el.fontSize}px`,
     `font-weight: ${el.fontWeight}`,
     `fill: ${el.color}`,
@@ -68,35 +73,6 @@ function renderWrappedText(
     .join("");
 
   return `<text x="${el.x}" y="${el.y}" text-anchor="${anchor}" style="${style}">${tspans}</text>`;
-}
-
-function needsWrapping(text: string, fontSize: number, maxWidth: number): boolean {
-  const estimatedWidth = text.length * fontSize * CHAR_WIDTH_RATIO;
-  return estimatedWidth > maxWidth;
-}
-
-function wrapText(text: string, fontSize: number, maxWidth: number): string[] {
-  const charWidth = fontSize * CHAR_WIDTH_RATIO;
-  const maxChars = Math.floor(maxWidth / charWidth);
-
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let currentLine = "";
-
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    if (testLine.length > maxChars && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
-    }
-  }
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-
-  return lines;
 }
 
 function escapeXml(text: string): string {

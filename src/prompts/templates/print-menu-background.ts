@@ -31,15 +31,11 @@ export function buildPrintMenuBackgroundPrompt(
     lines.push("Incorporate visual elements that evoke this theme (decorative motifs, patterns, relevant imagery) — but NO text.");
   }
 
-  if (content.campaign) {
-    lines.push(`\nCampaign theme: ${content.campaign}`);
-  }
-
   lines.push("");
   lines.push("### Layout Zones (approximate)");
-  lines.push("- Top 15%: Decorative header area (logo placement zone)");
-  lines.push("- Center 70%: KEEP CLEAR — minimal decoration, this is where menu text will be overlaid");
-  lines.push("- Bottom 10%: Decorative footer area");
+  lines.push("- Top 20-30%: Decorative header area with logo placement zone");
+  lines.push("- Center 50-60%: KEEP CLEAR — minimal decoration, this is where menu text will be overlaid");
+  lines.push("- Bottom 10-15%: Decorative footer area with subtle border elements");
 
   lines.push("");
   lines.push("### CRITICAL RULES");

@@ -23,6 +23,9 @@ export function generateIdempotencyKey(
     request.parentId ?? "",
     request.customPrompt ?? "",
     request.style ?? "",
+    request.logoColor ?? "",
+    request.headingFont ?? "",
+    request.bodyFont ?? "",
   ];
 
   return createHash("sha256").update(parts.join("|")).digest("hex");
