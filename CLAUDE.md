@@ -66,7 +66,7 @@ npm run typecheck
 - **Generation pipeline** (`src/generation/pipeline.ts`): validate → prompt → generate → quality gate → process → store
 - **Providers** (`src/providers/`): Gemini and OpenAI image generation via a provider registry with budget tracking and rate controls
 - **Prompts** (`src/prompts/`): Template-based prompt assembly with brand injection (flyer, menu, menu background, social post)
-- **Quality gate** (`src/quality/gate.ts`): Automated checks (decodable, dimensions, blank detection, brand colors)
+- **Quality gate** (`src/quality/gate.ts`): Automated checks (decodable, dimensions, blank detection, brand colors, aspect ratio)
 - **Text overlay** (`src/text/`): Programmatic text rendering pipeline: measure clear zone → layout → SVG render → Sharp composite
 - **Processing** (`src/processing/`): Sharp-based resize for social (RGB PNG), print (300 DPI + bleed + crop marks), and logo tinting
 - **Export** (`src/export/`): Editable PDF (pdf-lib + fontkit) and PowerPoint (python-pptx via subprocess)
@@ -165,7 +165,7 @@ npm test              # Run all tests
 npm run test:watch    # Watch mode
 ```
 
-Tests use a mock provider (no API calls). Test directories: `tests/brands/`, `tests/content/`, `tests/integration/`, `tests/processing/`, `tests/prompts/`, `tests/providers/`, `tests/quality/`.
+Tests use a mock provider (no API calls). Test directories: `tests/brands/`, `tests/content/`, `tests/integration/`, `tests/processing/`, `tests/prompts/`, `tests/providers/`, `tests/quality/`, `tests/text/`.
 
 ## Environment Notes
 
