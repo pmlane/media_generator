@@ -3,13 +3,15 @@
  *
  * Used with --text-overlay mode. Tells the AI to generate a decorative
  * background design with NO text — text is composited programmatically.
+ * When brand assets are attached, instructs AI to integrate the logo.
  */
 
 import type { MenuContent, BrandProfile } from "../../media/types.js";
 
 export function buildPrintMenuBackgroundPrompt(
   content: MenuContent,
-  brand: BrandProfile
+  brand: BrandProfile,
+  hasBrandAssets?: boolean
 ): string {
   const lines: string[] = ["## Background Design (NO TEXT)"];
 
@@ -33,15 +35,21 @@ export function buildPrintMenuBackgroundPrompt(
 
   lines.push("");
   lines.push("### Layout Zones (approximate)");
-  lines.push("- Top 20-30%: Decorative header area with logo placement zone");
+  if (hasBrandAssets) {
+    lines.push("- Top 20-30%: Header area — incorporate the attached brand logo here as a prominent design element. Frame it with decorative elements that match the overall style. The logo should look like a natural, intentional part of the composition.");
+  } else {
+    lines.push("- Top 20-30%: Header area — decorative header with brand-inspired design elements");
+  }
   lines.push("- Center 50-60%: KEEP CLEAR — minimal decoration, this is where menu text will be overlaid");
   lines.push("- Bottom 10-15%: Decorative footer area with subtle border elements");
 
   lines.push("");
   lines.push("### CRITICAL RULES");
-  lines.push("- DO NOT render any text, words, letters, numbers, or prices");
-  lines.push("- DO NOT write menu item names, section headers, or titles");
-  lines.push("- DO NOT include any handwritten or decorative text");
+  lines.push("- DO NOT render any menu text: no item names, prices, section headers, or titles");
+  lines.push("- DO NOT include any handwritten, decorative, or filler text");
+  if (hasBrandAssets) {
+    lines.push("- The attached brand logo is the ONLY image element to include — use it exactly as provided in the header area. Do not redraw, trace, or recreate it. Add framing, borders, or decorative accents around it that complement the design style.");
+  }
   lines.push("- The center area must be clean enough for overlaid text to be legible");
   lines.push(
     `- Venue: ${brand.venue.address}, ${brand.venue.city}, ${brand.venue.state} (for atmosphere reference only — do NOT render this text)`

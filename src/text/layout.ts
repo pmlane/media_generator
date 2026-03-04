@@ -51,6 +51,7 @@ export interface MenuLayoutOptions {
   accentColor?: string;
   headingFont?: string;
   bodyFont?: string;
+  skipTitle?: boolean;
 }
 
 /**
@@ -181,36 +182,40 @@ export function calculateMenuLayout(
 
     // --- Title ---
     let y = titleZoneTop + titleSize;
-    elements.push({
-      text: content.title,
-      x: centerX,
-      y,
-      fontSize: titleSize,
-      fontFamily: headingFont,
-      fontWeight: "bold",
-      color: headingColor,
-      anchor: "middle",
-      maxWidth: contentWidth,
-    });
-    const titleLines = estimateLines(content.title, titleSize, contentWidth);
-    if (titleLines > 1) {
-      y += Math.round(titleSize * 1.3) * (titleLines - 1);
-    }
-
-    // --- Subtitle ---
-    if (content.subtitle) {
-      y += Math.round(subtitleSize * 1.4);
+    if (!options?.skipTitle) {
       elements.push({
-        text: content.subtitle,
+        text: content.title,
         x: centerX,
         y,
-        fontSize: subtitleSize,
-        fontFamily: bodyFont,
-        fontWeight: "normal",
-        color: descriptionColor,
+        fontSize: titleSize,
+        fontFamily: headingFont,
+        fontWeight: "bold",
+        color: headingColor,
         anchor: "middle",
         maxWidth: contentWidth,
       });
+      const titleLines = estimateLines(content.title, titleSize, contentWidth);
+      if (titleLines > 1) {
+        y += Math.round(titleSize * 1.3) * (titleLines - 1);
+      }
+
+      // --- Subtitle ---
+      if (content.subtitle) {
+        y += Math.round(subtitleSize * 1.4);
+        elements.push({
+          text: content.subtitle,
+          x: centerX,
+          y,
+          fontSize: subtitleSize,
+          fontFamily: bodyFont,
+          fontWeight: "normal",
+          color: descriptionColor,
+          anchor: "middle",
+          maxWidth: contentWidth,
+        });
+      }
+
+      y += Math.round(titleSize * 0.4);
     }
 
     // --- Menu items ---
@@ -218,8 +223,6 @@ export function calculateMenuLayout(
     const descLineSpacing = Math.round(itemDescSize * 1.5);
     const sectionGap = Math.round(sectionHeaderSize * 2.2);
     const postHeaderGap = Math.round(sectionHeaderSize * 0.6);
-
-    y += Math.round(titleSize * 0.4);
 
     for (const section of content.sections) {
       const skipHeader =

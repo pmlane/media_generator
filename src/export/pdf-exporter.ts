@@ -20,6 +20,11 @@ const DEFAULT_FONT_MAP: Record<string, FontPaths> = {
     bodyRegular: path.join(FONTS_DIR, "LibreFranklin-Regular.otf"),
     bodyBold: path.join(FONTS_DIR, "LibreFranklin-Bold.otf"),
   },
+  "playfair display": {
+    heading: path.join(FONTS_DIR, "PlayfairDisplay[wght].ttf"),
+    bodyRegular: path.join(FONTS_DIR, "LibreFranklin-Regular.otf"),
+    bodyBold: path.join(FONTS_DIR, "LibreFranklin-Bold.otf"),
+  },
 };
 
 /**
@@ -37,13 +42,28 @@ export async function exportPdf(
   layout: TextLayout,
   outputPath: string,
   dpi: number,
-  fontPaths?: FontPaths
+  fontPaths?: FontPaths,
+  headingFontFamily?: string
 ): Promise<string> {
   const outputDir = path.dirname(outputPath);
   mkdirSync(outputDir, { recursive: true });
 
   const bgBuffer = readFileSync(backgroundPath);
-  const fonts = fontPaths ?? DEFAULT_FONT_MAP["oswald"];
+
+  // Resolve font map: explicit paths > match heading font from layout > oswald fallback
+  let fonts: FontPaths;
+  let resolvedFamily = "oswald";
+  if (fontPaths) {
+    fonts = fontPaths;
+    resolvedFamily = headingFontFamily ?? "oswald";
+  } else {
+    // Detect heading font from layout elements or use explicit family
+    const detectedFamily = headingFontFamily
+      ?? layout.elements.find((el) => el.fontWeight === "bold")?.fontFamily;
+    const key = detectedFamily?.toLowerCase() ?? "oswald";
+    fonts = DEFAULT_FONT_MAP[key] ?? DEFAULT_FONT_MAP["oswald"];
+    resolvedFamily = key;
+  }
 
   const fontBytes = {
     heading: new Uint8Array(readFileSync(fonts.heading)),
@@ -51,7 +71,7 @@ export async function exportPdf(
     bodyBold: new Uint8Array(readFileSync(fonts.bodyBold)),
   };
 
-  const pdfBytes = await renderPdf(bgBuffer, backgroundPath, layout, fontBytes, dpi);
+  const pdfBytes = await renderPdf(bgBuffer, backgroundPath, layout, fontBytes, dpi, resolvedFamily);
   writeFileSync(outputPath, pdfBytes);
   return outputPath;
 }

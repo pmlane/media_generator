@@ -51,6 +51,7 @@ generate
   .option("--like <id>", "Use a previous generation as template")
   .option("--custom-prompt <text>", "Additional instructions for the AI")
   .option("--logo-color <hex>", "Tint the logo with a hex color, e.g. #8B00FF")
+  .option("--logo <id>", "Specific logo ID from brand profile")
   .option("--provider <name>", "Image provider: openai, gemini")
   .option("--quality <level>", "Image quality: low, medium, high (OpenAI only)")
   .option("--tag <tags...>", "Tags for organization")
@@ -76,6 +77,7 @@ generate
       style: opts.style,
       customPrompt: opts.customPrompt,
       logoColor: opts.logoColor,
+      logoId: opts.logo,
       provider: opts.provider,
       quality: opts.quality,
       images: opts.image,
@@ -108,6 +110,7 @@ generate
   .option("--reference <path>", "Reference image for style inspiration")
   .option("--custom-prompt <text>", "Additional instructions")
   .option("--logo-color <hex>", "Tint the logo with a hex color, e.g. #8B00FF")
+  .option("--logo <id>", "Specific logo ID from brand profile")
   .option("--provider <name>", "Image provider: openai, gemini")
   .option("--quality <level>", "Image quality: low, medium, high (OpenAI only)")
   .option("--tag <tags...>", "Tags")
@@ -152,6 +155,7 @@ generate
       style: opts.style,
       customPrompt: opts.customPrompt,
       logoColor: opts.logoColor,
+      logoId: opts.logo,
       provider: opts.provider,
       quality: opts.quality,
       images: images.length > 0 ? images : undefined,
@@ -184,6 +188,7 @@ generate
   .option("--like <id>", "Use a previous generation as template")
   .option("--custom-prompt <text>", "Additional instructions")
   .option("--logo-color <hex>", "Tint the logo with a hex color, e.g. #8B00FF")
+  .option("--logo <id>", "Specific logo ID from brand profile")
   .option("--provider <name>", "Image provider: openai, gemini")
   .option("--quality <level>", "Image quality: low, medium, high (OpenAI only)")
   .option("--tag <tags...>", "Tags")
@@ -207,6 +212,7 @@ generate
       style: opts.style,
       customPrompt: opts.customPrompt,
       logoColor: opts.logoColor,
+      logoId: opts.logo,
       provider: opts.provider,
       quality: opts.quality,
       images: opts.image,

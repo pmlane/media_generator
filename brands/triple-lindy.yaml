@@ -52,20 +52,26 @@ design_rules:
 
 logos:
   - id: logo-black
-    path: "../../new_website/media_assets/logos/01 TL_black.png"
+    path: "../../new_website/media_assets/Brand/Logos/Triple Lindy Logos/01 TL_black.png"
     type: primary
     use_on: light
   - id: logo-red
-    path: "../../new_website/media_assets/logos/02 TL_red.png"
+    path: "../../new_website/media_assets/Brand/Logos/Triple Lindy Logos/02 TL_red.png"
     type: primary
     use_on: dark
   - id: logo-white
-    path: "../../new_website/media_assets/logos/03 TL_white.png"
+    path: "../../new_website/media_assets/Brand/Logos/Triple Lindy Logos/03 TL_white.png"
     type: primary
     use_on: dark
-  - id: pdx-diver
-    path: "../../new_website/media_assets/logos/PDX Diver - Free Space_No Background.png"
+  - id: diver-circle
+    path: "../../new_website/media_assets/Brand/Logos/Triple Lindy Logos/Triple Lindy - PDX Diver Logo TM circle.jpg"
     type: mascot
+    use_on: any
+  - id: pdx-diver
+    path: "../../new_website/media_assets/Brand/Logos/Triple Lindy Logos/PDX Diver - Free Space_No Background.png"
+    type: mascot
+    use_on: dark
   - id: rodney-head
-    path: "../../new_website/media_assets/logos/Rodney Head.png"
+    path: "../../new_website/media_assets/Brand/Logos/Triple Lindy Logos/Rodney Head.png"
     type: icon
+    use_on: dark

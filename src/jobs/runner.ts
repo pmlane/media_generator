@@ -88,8 +88,9 @@ export class JobRunner {
     job.status = "running";
 
     // Load input images (brand assets + content images)
-    const { images: brandImages, preferredBackground } =
-      await this.loadBrandImages(brand, request.style, request.customPrompt);
+    const { images: brandImages, logoType, warnings: logoWarnings, preferredBackground } =
+      await this.loadBrandImages(brand, request.style, request.customPrompt, request.logoId);
+    job.warnings.push(...logoWarnings);
 
     // Tint brand logos if a custom color was requested
     if (request.logoColor) {
@@ -288,7 +289,7 @@ export class JobRunner {
         );
       }
 
-      // Text overlay: composite programmatic text onto background
+      // Text overlay: composite programmatic text + logo onto background
       if (request.textOverlay && request.mediaType === "print-menu") {
         const menuContent = request.content as MenuContent;
         const clearZone = await measureClearZone(processedBuffer);
@@ -313,7 +314,6 @@ export class JobRunner {
         );
         warnings.push(`Background saved: ${bgSaveInfo.filePath}`);
 
-        // Composite text SVG onto background
         processedBuffer = await sharp(processedBuffer)
           .composite([{ input: textSvg, top: 0, left: 0 }])
           .png()
@@ -452,38 +452,52 @@ export class JobRunner {
   private async loadBrandImages(
     brand: BrandProfile,
     style?: FlyerStyle,
-    customPrompt?: string
+    customPrompt?: string,
+    logoId?: string
   ): Promise<{
     images: LoadedImage[];
+    logoType: BrandLogo["type"];
+    warnings: string[];
     preferredBackground?: "light" | "dark";
   }> {
     const images: LoadedImage[] = [];
-    const primaryLogos = brand.logos.filter(
-      (l) => l.type === "primary" || l.type === "secondary"
-    );
+    const warnings: string[] = [];
 
     // Determine which background the design will likely have
     const bg = inferBackground(style, customPrompt);
-    const selected = selectLogosForBackground(primaryLogos, bg);
 
-    for (const logo of selected) {
-      const resolved = logo.resolvedPath ?? logo.path;
-      try {
-        const loaded = loadImageFile(resolved);
-        if (loaded) {
-          images.push({
-            data: loaded.data,
-            mimeType: loaded.mimeType,
-            path: resolved,
-            name: logo.id,
-          });
-        }
-      } catch {
-        // Skip missing brand assets with warning
+    let selected: BrandLogo;
+    if (logoId) {
+      // Explicit logo requested by ID
+      const match = brand.logos.find((l) => l.id === logoId);
+      if (!match) {
+        warnings.push(`Logo ID "${logoId}" not found, falling back to auto-select`);
+        selected = selectLogoForDesign(brand.logos, bg);
+      } else {
+        selected = match;
       }
+    } else {
+      selected = selectLogoForDesign(brand.logos, bg);
     }
 
-    return { images, preferredBackground: bg };
+    const resolved = selected.resolvedPath ?? selected.path;
+    try {
+      const loaded = loadImageFile(resolved);
+      if (loaded) {
+        images.push({
+          data: loaded.data,
+          mimeType: loaded.mimeType,
+          path: resolved,
+          name: selected.id,
+        });
+      } else {
+        warnings.push(`Logo not found: ${resolved}`);
+      }
+    } catch (err) {
+      warnings.push(`Logo failed to load: ${resolved} (${err instanceof Error ? err.message : err})`);
+    }
+
+    return { images, logoType: selected.type, warnings, preferredBackground: bg };
   }
 
   private async loadContentImages(
@@ -796,20 +810,22 @@ function inferBackground(
 }
 
 /**
- * Pick the best logo variant(s) for the expected background color.
- * Returns at most 1 logo to avoid confusing the AI with multiple variants.
+ * Pick a single logo for the design, considering all logo types.
+ * Filters by background compatibility, then picks randomly for variety.
  */
-function selectLogosForBackground(
+function selectLogoForDesign(
   logos: BrandLogo[],
   background: "light" | "dark"
-): BrandLogo[] {
-  // Prefer logos tagged for this background
-  const matching = logos.filter((l) => l.use_on === background || l.use_on === "any");
-  if (matching.length > 0) return [matching[0]];
+): BrandLogo {
+  // Filter to logos usable on this background
+  const usable = logos.filter(
+    (l) => !l.use_on || l.use_on === background || l.use_on === "any"
+  );
 
-  // Fallback: take the first available logo
-  if (logos.length > 0) return [logos[0]];
-  return [];
+  if (usable.length === 0) return logos[0]; // fallback
+
+  // Random selection from all usable logos
+  return usable[Math.floor(Math.random() * usable.length)];
 }
 
 interface LoadedImage {

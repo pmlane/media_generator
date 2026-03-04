@@ -40,7 +40,8 @@ export async function renderPdf(
   bgPath: string,
   layout: TextLayout,
   fontBytes: { heading: Uint8Array; bodyRegular: Uint8Array; bodyBold: Uint8Array },
-  dpi: number
+  dpi: number,
+  headingFontFamily: string = "oswald"
 ): Promise<Uint8Array> {
   const PX_TO_PT = 72 / dpi;
   const pxToPt = (px: number) => px * PX_TO_PT;
@@ -74,7 +75,7 @@ export async function renderPdf(
   // Resolve the right embedded font for a given element
   function resolveFont(el: TextElement) {
     const family = el.fontFamily.toLowerCase();
-    if (family === "oswald") return headingFont;
+    if (family === headingFontFamily.toLowerCase()) return headingFont;
     if (el.fontWeight === "bold") return bodyBold;
     return bodyRegular;
   }

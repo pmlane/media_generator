@@ -2,6 +2,7 @@
  * Export an editable PDF with background image + text objects.
  * Usage: npx tsx scripts/export-pdf.ts <background.png> <menu.txt> [options]
  *   --title "..."          Menu title (default: "Menu")
+ *   --no-title             Skip title rendering (background already has it)
  *   --accent-color "#hex"  Heading color override
  *   --heading-font "Name"  Heading font override
  *   --body-font "Name"     Body font override
@@ -25,13 +26,14 @@ function getFlag(name: string): string | undefined {
 const bgPath = process.argv[2];
 const menuPath = process.argv[3];
 const title = getFlag("--title") ?? "Menu";
+const noTitle = process.argv.includes("--no-title");
 const accentColor = getFlag("--accent-color");
 const headingFont = getFlag("--heading-font");
 const bodyFont = getFlag("--body-font");
 
 if (!bgPath || !menuPath) {
   console.error(
-    "Usage: npx tsx scripts/export-pdf.ts <background.png> <menu.txt> [--title '...'] [--accent-color '#hex'] [--heading-font '...'] [--body-font '...']"
+    "Usage: npx tsx scripts/export-pdf.ts <background.png> <menu.txt> [--title '...'] [--no-title] [--accent-color '#hex'] [--heading-font '...'] [--body-font '...']"
   );
   process.exit(1);
 }
@@ -53,13 +55,14 @@ const layout = calculateMenuLayout(content, brand, format, clearZone, {
   accentColor,
   headingFont,
   bodyFont,
+  skipTitle: noTitle,
 });
 console.log(`Layout: ${layout.elements.length} elements`);
 
 // --- Export PDF ---
 
 const outPath = bgPath.replace(/\.(png|jpg|jpeg)$/i, "-editable.pdf");
-await exportPdf(bgPath, layout, outPath, format.dpi);
+await exportPdf(bgPath, layout, outPath, format.dpi, undefined, headingFont);
 
 const PX_TO_PT = 72 / format.dpi;
 const pageWidthPt = layout.width * PX_TO_PT;

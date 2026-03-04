@@ -6,6 +6,7 @@
  */
 
 import OpenAI from "openai";
+import type { ResponseInputContent, ResponseOutputItem } from "openai/resources/responses/responses";
 import type {
   ImageProvider,
   ProviderRequest,
@@ -13,6 +14,7 @@ import type {
 } from "../media/types.js";
 
 const DEFAULT_MODEL = "gpt-image-1";
+const DEFAULT_RESPONSES_MODEL = "gpt-4o";
 const DEFAULT_QUALITY = "medium";
 const DEFAULT_COST_CENTS = 4;
 
@@ -34,18 +36,22 @@ export class OpenAIProvider implements ImageProvider {
   private client: OpenAI | null = null;
   private apiKey: string;
   private model: string;
+  private responsesModel: string;
   private quality: string;
   private costCents: number;
 
   constructor(config?: {
     apiKey?: string;
     model?: string;
+    responsesModel?: string;
     quality?: string;
     costCents?: number;
   }) {
     this.apiKey = config?.apiKey ?? process.env.OPENAI_API_KEY ?? "";
     this.model =
       config?.model ?? process.env.OPENAI_IMAGE_MODEL ?? DEFAULT_MODEL;
+    this.responsesModel =
+      config?.responsesModel ?? process.env.OPENAI_RESPONSES_MODEL ?? DEFAULT_RESPONSES_MODEL;
     this.quality =
       config?.quality ?? process.env.OPENAI_IMAGE_QUALITY ?? DEFAULT_QUALITY;
     this.costCents =
@@ -73,6 +79,53 @@ export class OpenAIProvider implements ImageProvider {
     try {
       const size = mapSize(request.outputConfig.aspectRatio);
       const quality = request.outputConfig.quality ?? this.quality;
+
+      if (request.images.length > 0) {
+        // Use Responses API: a language model sees input images and
+        // dispatches the image_generation tool — matching Gemini's approach.
+        const content: ResponseInputContent[] = request.images.map((img) => {
+          const b64 = img.data.toString("base64");
+          return {
+            type: "input_image" as const,
+            image_url: `data:${img.mimeType};base64,${b64}`,
+            detail: "high" as const,
+          };
+        });
+        content.push({ type: "input_text" as const, text: request.prompt });
+
+        const response = await this.client.responses.create({
+          model: this.responsesModel,
+          input: [{ role: "user" as const, content }],
+          tools: [{
+            type: "image_generation" as const,
+            model: this.model,
+            input_fidelity: "high",
+            quality: quality as "low" | "medium" | "high",
+            size,
+            output_format: "png",
+          }],
+          tool_choice: { type: "image_generation" as const },
+        });
+
+        const imageCall = response.output.find(
+          (item): item is ResponseOutputItem.ImageGenerationCall =>
+            item.type === "image_generation_call",
+        );
+        if (!imageCall || imageCall.status !== "completed" || !imageCall.result) {
+          return {
+            success: false,
+            error: "Image generation failed in Responses API",
+            errorType: "transient",
+          };
+        }
+
+        return {
+          success: true,
+          imageBuffer: Buffer.from(imageCall.result, "base64"),
+          costCents: this.costCents,
+          model: `${this.responsesModel}+${this.model}`,
+        };
+      }
 
       const result = await this.client.images.generate({
         model: this.model,

@@ -217,6 +217,8 @@ export interface GenerationRequest {
   headingFont?: string;
   /** Override body font family for text overlay */
   bodyFont?: string;
+  /** Specific logo ID to use (from brand YAML) */
+  logoId?: string;
 }
 
 // --- Metadata ---

@@ -60,7 +60,7 @@ export function buildPrompt(ctx: PromptContext): string {
   sections.push(buildFormatSection(ctx.format));
 
   // 5. Design rules
-  sections.push(buildDesignRulesSection(ctx.brand));
+  sections.push(buildDesignRulesSection(ctx.brand, ctx.hasBrandAssets ?? false));
 
   // 6. Image context (brand logos, template, content images)
   if (ctx.hasBrandAssets || ctx.hasTemplateImage || ctx.hasContentImages) {
@@ -119,7 +119,7 @@ function buildContentSection(ctx: PromptContext): string {
       return buildEventFlyerPrompt(ctx.content as EventContent, ctx.brand);
     case "print-menu":
       if (ctx.textOverlay) {
-        return buildPrintMenuBackgroundPrompt(ctx.content as MenuContent, ctx.brand);
+        return buildPrintMenuBackgroundPrompt(ctx.content as MenuContent, ctx.brand, ctx.hasBrandAssets);
       }
       return buildPrintMenuPrompt(ctx.content as MenuContent, ctx.brand);
     case "social-post":
@@ -148,11 +148,14 @@ function buildFormatSection(format: FormatConfig): string {
   return section;
 }
 
-function buildDesignRulesSection(brand: BrandProfile): string {
+function buildDesignRulesSection(brand: BrandProfile, hasBrandAssets: boolean): string {
   const prohibited = brand.design_rules.prohibited
     .map((r) => `- ${r}`)
     .join("\n");
-  const required = brand.design_rules.required
+  const requiredRules = hasBrandAssets
+    ? brand.design_rules.required
+    : brand.design_rules.required.filter((r) => !/brand logo/i.test(r));
+  const required = requiredRules
     .map((r) => `- ${r}`)
     .join("\n");
 

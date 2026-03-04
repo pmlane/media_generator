@@ -25,6 +25,7 @@ describe("Prompt Builder", () => {
         mediaType: "event-flyer",
         content: eventContent,
         style: "vibrant",
+        hasBrandAssets: true,
       });
 
       // Should contain brand identity
@@ -47,6 +48,18 @@ describe("Prompt Builder", () => {
 
       // Should contain style
       expect(prompt).toContain(STYLE_DESCRIPTIONS.vibrant);
+    });
+
+    it("excludes brand logo rule when no brand assets", () => {
+      const prompt = buildPrompt({
+        brand,
+        format: INSTAGRAM_SQUARE,
+        mediaType: "event-flyer",
+        content: eventContent,
+        hasBrandAssets: false,
+      });
+
+      expect(prompt).not.toContain("Place the attached brand logo");
     });
 
     it("includes format-specific print info for print formats", () => {
